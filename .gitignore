@@ -2,6 +2,7 @@ venv/
 build/
 *.charm
 .tox/
+.idea
 .vscode/
 .coverage
 __pycache__/
