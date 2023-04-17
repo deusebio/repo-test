@@ -12,12 +12,6 @@ on:
     - cron: "53 0 * * *" # Daily at 00:53 UTC
   # Triggered on push to branch "main" by .github/workflows/release.yaml
   workflow_call:
-    secrets:
-      DISCOURSE_API_USERNAME:
-        required: true
-      DISCOURSE_API_KEY:
-        required: true
-  workflow_dispatch:
     inputs:
       docs_dry_run:
         description: 'Whether we want to push changes to discourse or not'
@@ -27,6 +21,12 @@ on:
         options:
           - "true"
           - "false"
+    secrets:
+      DISCOURSE_API_USERNAME:
+        required: true
+      DISCOURSE_API_KEY:
+        required: true
+
 
 jobs:
   lint:
