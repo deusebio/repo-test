@@ -16,7 +16,6 @@ on:
       docs_dry_run:
         description: 'Whether we want to push changes to discourse or not'
         required: true
-        default: 'true'
         type: string
     secrets:
       DISCOURSE_API_USERNAME:
