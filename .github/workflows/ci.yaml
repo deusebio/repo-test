@@ -8,6 +8,8 @@ concurrency:
 
 on:
   pull_request:
+    with:
+      docs_dry_run: "true"
   schedule:
     - cron: "53 0 * * *" # Daily at 00:53 UTC
   # Triggered on push to branch "main" by .github/workflows/release.yaml
@@ -68,7 +70,7 @@ jobs:
       #     dry_run: ${{ inputs.docs_dry_run }}
       - name: Debug
         with:
-          docs_dry_run: "true"
+          docs_dry_run: ${{ inputs.docs_dry_run }}
 
         run: echo "${{ inputs.docs_dry_run }}"
 
