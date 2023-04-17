@@ -9,11 +9,8 @@ jobs:
   ci-tests:
     uses: ./.github/workflows/ci.yaml
     secrets:
-      CHARMHUB_TOKEN: "${{ secrets.CHARMHUB_TOKEN }}"
-      AWS_ACCESS_KEY: "${{ secrets.AWS_ACCESS_KEY }}"
-      AWS_SECRET_KEY: "${{ secrets.AWS_SECRET_KEY }}"
-      GCP_ACCESS_KEY: "${{ secrets.GCP_ACCESS_KEY }}"
-      GCP_SECRET_KEY: "${{ secrets.GCP_SECRET_KEY }}"
+      DISCOURSE_API_USERNAME: "${{ secrets.DISCOURSE_API_USERNAME }}"
+      DISCOURSE_API_KEY: "${{ secrets.DISCOURSE_API_KEY }}"
 
   publish-docs:
     name: Publish docs
