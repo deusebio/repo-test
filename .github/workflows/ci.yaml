@@ -76,7 +76,3 @@ jobs:
       - name: Show reconcile output
         run: echo '${{ steps.publishDocumentation.outputs.reconcile }}'
 
-
-  build:
-    name: Build charms
-    uses: canonical/data-platform-workflows/.github/workflows/build_charms_with_cache.yaml@v2
