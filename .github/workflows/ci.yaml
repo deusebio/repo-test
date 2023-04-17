@@ -2,21 +2,12 @@
 # See LICENSE file for licensing details.
 name: Tests
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
-  pull_request:
-  schedule:
-    - cron: "53 0 * * *" # Daily at 00:53 UTC
-  # Triggered on push to branch "main" by .github/workflows/release.yaml
   workflow_call:
     inputs:
       docs_dry_run:
         description: 'Whether we want to push changes to discourse or not'
-        required: false
-        default: 'true'
+        required: true
         type: string
     secrets:
       DISCOURSE_API_USERNAME:
@@ -70,10 +61,7 @@ jobs:
 
       - name: Show migrate output
         run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
+
       - name: Show reconcile output
         run: echo '${{ steps.publishDocumentation.outputs.reconcile }}'
 
-
-  build:
-    name: Build charms
-    uses: canonical/data-platform-workflows/.github/workflows/build_charms_with_cache.yaml@v2
