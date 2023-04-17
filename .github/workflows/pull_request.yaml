@@ -1,0 +1,17 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: Tests
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+
+jobs:
+  ci-tests:
+    uses: ./.github/workflows/ci.yaml
+    with:
+      docs_dry_run: true
+    secrets: inherit
