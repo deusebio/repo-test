@@ -15,12 +15,9 @@ on:
     inputs:
       docs_dry_run:
         description: 'Whether we want to push changes to discourse or not'
-        required: true
+        required: false
         default: 'true'
-        type: choice
-        options:
-          - "true"
-          - "false"
+        type: string
     secrets:
       DISCOURSE_API_USERNAME:
         required: true
