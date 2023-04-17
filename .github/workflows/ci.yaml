@@ -12,18 +12,11 @@ on:
     - cron: "53 0 * * *" # Daily at 00:53 UTC
   # Triggered on push to branch "main" by .github/workflows/release.yaml
   workflow_call:
-    inputs:
-      docs_dry_run:
-        description: 'Whether we want to push changes to discourse or not'
-        required: false
-        default: 'true'
-        type: string
     secrets:
       DISCOURSE_API_USERNAME:
         required: true
       DISCOURSE_API_KEY:
         required: true
-
 
 jobs:
   lint:
@@ -52,7 +45,7 @@ jobs:
       - name: Run tests
         run: tox run -e unit
 
-  publish-docs:
+  publish-docs-check:
     name: Publish docs
     runs-on: ubuntu-22.04
     steps:
@@ -66,7 +59,7 @@ jobs:
           discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: ${{ inputs.docs_dry_run }}
+          dry_run: "true"
 
       - name: Show migrate output
         run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
