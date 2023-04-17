@@ -17,6 +17,16 @@ on:
         required: true
       DISCOURSE_API_KEY:
         required: true
+  workflow_dispatch:
+    inputs:
+      docs_dry_run:
+        description: 'Whether we want to push changes to discourse or not'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 jobs:
   lint:
@@ -45,7 +55,7 @@ jobs:
       - name: Run tests
         run: tox run -e unit
 
-  publish-docs-check:
+  publish-docs:
     name: Publish docs
     runs-on: ubuntu-22.04
     steps:
@@ -59,7 +69,7 @@ jobs:
           discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: "true"
+          dry_run: ${{ inputs.docs_dry_run }}
 
       - name: Show migrate output
         run: echo '${{ steps.publishDocumentation.outputs.migrate }}'

@@ -8,28 +8,11 @@ on:
 jobs:
   ci-tests:
     uses: ./.github/workflows/ci.yaml
+    with:
+      docs_dry_run: "false"
     secrets:
       DISCOURSE_API_USERNAME: "${{ secrets.DISCOURSE_API_USERNAME }}"
       DISCOURSE_API_KEY: "${{ secrets.DISCOURSE_API_KEY }}"
-
-  publish-docs:
-    name: Publish docs
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-      - name: Publish documentation
-        uses: canonical/upload-charm-docs@wip-reconcile-on-tag-condition
-        id: publishDocumentation
-        with:
-          discourse_host: discourse.charmhub.io
-          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
-          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: "false"
-      - name: Show migrate output
-        run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
-      - name: Show reconcile output
-        run: echo '${{ steps.publishDocumentation.outputs.reconcile }}'
 
   release-to-charmhub:
     name: Release to CharmHub
