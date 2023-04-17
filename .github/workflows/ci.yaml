@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+
       - name: Publish documentation
         uses: deusebio/upload-charm-docs@wip-test-action
         id: publishDocumentation
@@ -59,6 +60,7 @@ jobs:
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           dry_run: "true"
+
       - name: Show migrate output
         run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
       - name: Show reconcile output
