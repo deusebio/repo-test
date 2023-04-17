@@ -17,10 +17,7 @@ on:
         description: 'Whether we want to push changes to discourse or not'
         required: true
         default: 'true'
-        type: choice
-        options:
-          - "true"
-          - "false"
+        type: string
     secrets:
       DISCOURSE_API_USERNAME:
         required: true
