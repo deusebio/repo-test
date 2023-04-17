@@ -66,7 +66,7 @@ jobs:
           discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: "true"
+          dry_run: ${{ inputs.docs_dry_run }}
 
       - name: Show migrate output
         run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
