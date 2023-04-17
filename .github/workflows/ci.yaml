@@ -69,9 +69,6 @@ jobs:
       #     github_token: ${{ secrets.GITHUB_TOKEN }}
       #     dry_run: ${{ inputs.docs_dry_run }}
       - name: Debug
-        with:
-          docs_dry_run: ${{ inputs.docs_dry_run }}
-
         run: echo "${{ inputs.docs_dry_run }}"
 
       - name: Show migrate output
