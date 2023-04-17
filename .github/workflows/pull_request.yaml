@@ -9,5 +9,7 @@ jobs:
   ci-tests:
     uses: ./.github/workflows/ci.yaml
     with:
-      docs_dry_run: true
-    secrets: inherit
+      docs_dry_run: "true"
+    secrets:
+      DISCOURSE_API_USERNAME: "${{ secrets.DISCOURSE_API_USERNAME }}"
+      DISCOURSE_API_KEY: "${{ secrets.DISCOURSE_API_KEY }}"
