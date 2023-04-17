@@ -1,4 +1,4 @@
-name: Detect upstream Spark updates
+name: Detect changes on Discourse to raise PR
 
 env:
   BRANCH: main
