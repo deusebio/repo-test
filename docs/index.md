@@ -13,17 +13,9 @@ Charmed MongoDB is an official distribution of MongoDB. It’s an open-source pr
 - [Join the Discourse forum](https://discourse.charmhub.io/tag/mongodb)
 - [Contribute and report bugs](https://github.com/canonical/mongodb-k8s-operator)
 
-
 # Navigation
 
-| Level | Path       | Navlink                 |
-|-------|------------|-------------------------|
-| 1     | tutorial   | [Tutorial]()            |
-| 2     | t-overview | [1. Introduction](/t/charmed-mongodb-k8s-tutorial-overview/9730) |
-
-# Redirects
-
-[details=Mapping table]
-| Path | Location |
-| ---- | -------- |
-[/details]
+| Level | Path | Navlink |
+| -- | -- | -- |
+| 1 | tutorial | [Tutorial]() |
+| 2 | t-overview | [1. Introduction](/t/charmed-mongodb-k8s-tutorial-overview/9730) |
