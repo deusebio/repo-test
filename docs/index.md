@@ -19,3 +19,4 @@ Charmed MongoDB is an official distribution of MongoDB. It’s an open-source pr
 | -- | -- | -- |
 | 1 | tutorial | [Tutorial]() |
 | 2 | t-overview | [1. Introduction](/t/charmed-mongodb-k8s-tutorial-overview/9730) |
+| 2 | t-deploy-mongodb | [2. Deploy MongoDB](/t/mongodb-docs-get-a-charmed-mongodb-up-and-running/10262)|
