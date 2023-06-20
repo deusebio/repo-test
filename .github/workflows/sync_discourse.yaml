@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Publish documentation
-        uses: deusebio/upload-charm-docs@wip-test-action
+        uses: canonical/upload-charm-docs@main
 
         id: publishDocumentation
         with:
