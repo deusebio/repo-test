@@ -1,7 +1,5 @@
 # Get a Charmed MongoDB up and running
 
-Edit on a different file
-
 This is part of the [Charmed MongoDB Tutorial](/t/charmed-mongodb-tutorial/8061). Please refer to this page for more information and the overview of the content. 
 
 ## Deploy
