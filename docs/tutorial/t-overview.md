@@ -24,4 +24,3 @@ Here’s an overview of the steps required. Each links deals with an individual 
 * [Relate your MongoDB to other applications](TODO)
 * [Enable security](TODO)
 * [Cleanup your environment](TODO)
-* [Extra bullet point](TODO)
