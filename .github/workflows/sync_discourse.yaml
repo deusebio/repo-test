@@ -1,8 +1,5 @@
 name: Detect changes on Discourse to raise PR
 
-env:
-  BRANCH: main
-
 on:
   workflow_dispatch:
   schedule:
@@ -16,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Publish documentation
-        uses: canonical/upload-charm-docs@main
+        uses: deusebio/discourse-gatekeeper@main
 
         id: publishDocumentation
         with:
