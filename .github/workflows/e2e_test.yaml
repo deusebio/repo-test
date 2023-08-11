@@ -96,6 +96,7 @@ jobs:
           echo "docs: ${{ steps.e2e-test-create.outputs.index_url }}" >> metadata.yaml
           cat metadata.yaml
           git status
+          git add -u 
           git commit -m "Update metadata"
           git log | head -n 1
       - name: Update self test
