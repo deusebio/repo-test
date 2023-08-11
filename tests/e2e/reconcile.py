@@ -123,34 +123,14 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     Args:
         repository: Client repository to used
-        discourse: Dicourse client class
+        discourse: Discourse client class
 
     Returns:
         boolean representing whether the preparation was successful.
     """
     repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
 
-    print(repository.branches)
-
-    for branch in [E2E_BRANCH, E2E_BASE]:
-        try:
-            print(f"Removing local {branch}")
-            repository._git_repo.git.branch("-D", branch)
-        except Exception as e:
-            print(f"Error when removing local branch with exception {e}")
-            pass
-
-        try:
-            print(f"Removing remote {branch}")
-            repository._git_repo.git.push("origin", "-d", branch)
-        except Exception as e:
-            print(f"Error when removing remote branch with exception {e}")
-            pass
-
-
-
-
-    with repository.create_branch(E2E_BASE).with_branch(E2E_BASE) as repo:
+    with repository.create_branch(E2E_BASE, E2E_SETUP).with_branch(E2E_BASE) as repo:
         repo._git_repo.git.push("origin", "-f", repo.current_branch)  # pylint: disable=W0212
 
         if repository.tag_exists(DOCUMENTATION_TAG):
@@ -161,7 +141,7 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
             )
 
     repository.create_branch(E2E_BRANCH, E2E_BASE).switch(E2E_BRANCH)
-    repository.update_branch("First commit of documentation")
+    repository.update_branch("First commit of documentation", force=True, directory=None)
     print(repository.current_commit)
 
     assert discourse
@@ -339,7 +319,7 @@ def check_create(
     # If create was successful, it means that the feature branch should be aligned with base branch
     # We simulate a branch merge by creating the base branch from the feature branch
     with repository.create_branch(E2E_BASE, E2E_BRANCH).with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("-u", "origin")  # pylint: disable=W0212
+        repo._git_repo.git.push("-u", "-f", "origin")  # pylint: disable=W0212
 
     return True
 
