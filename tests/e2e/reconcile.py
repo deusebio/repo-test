@@ -319,7 +319,7 @@ def check_create(
     # If create was successful, it means that the feature branch should be aligned with base branch
     # We simulate a branch merge by creating the base branch from the feature branch
     with repository.create_branch(E2E_BASE, E2E_BRANCH).with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("-u", "-f", "origin")  # pylint: disable=W0212
+        repo._git_repo.git.push("-u", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
 
     return True
 
