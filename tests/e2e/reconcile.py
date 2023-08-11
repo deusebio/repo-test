@@ -18,7 +18,7 @@ from tests.e2e import exit_
 from src.gatekeeper.constants import DOCUMENTATION_TAG
 from src.gatekeeper.discourse import Discourse, create_discourse
 from src.gatekeeper.exceptions import DiscourseError
-from src.gatekeeper.repository import Client as RepositoryClient
+from src.gatekeeper.repository import Client as RepositoryClient, DEFAULT_BRANCH_NAME
 from src.gatekeeper.repository import create_repository_client
 
 E2E_SETUP = "origin/tests/e2e"
@@ -95,7 +95,8 @@ def main() -> None:
         case Action.CHECK_UPDATE.value:
             exit_.with_result(
                 check_update(
-                    urls_with_actions=urls_with_actions, discourse=discourse, **action_kwargs
+                    repository=repository, discourse=discourse,
+                    urls_with_actions=urls_with_actions, **action_kwargs
                 )
             )
         case Action.CHECK_DELETE_TOPICS.value:
@@ -123,48 +124,20 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     Args:
         repository: Client repository to used
-        discourse: Dicourse client class
+        discourse: Discourse client class
 
     Returns:
         boolean representing whether the preparation was successful.
     """
     repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
 
-    print(repository.branches)
+    repository.create_branch(E2E_BASE, E2E_SETUP).switch(E2E_BASE)
 
-    for branch in [E2E_BRANCH, E2E_BASE]:
-        try:
-            print(f"Removing local {branch}")
-            repository._git_repo.git.branch("-D", branch)
-        except Exception as e:
-            print(f"Error when removing local branch with exception {e}")
-            pass
+    repository.tag_commit(DOCUMENTATION_TAG, repository.current_commit)
 
-        try:
-            print(f"Removing remote {branch}")
-            repository._git_repo.git.push("origin", "-d", branch)
-        except Exception as e:
-            print(f"Error when removing remote branch with exception {e}")
-            pass
+    repository.update_branch("First commit of documentation", force=True, directory=None)
 
-
-
-
-    with repository.create_branch(E2E_BASE).with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("origin", "-f", repo.current_branch)  # pylint: disable=W0212
-
-        if repository.tag_exists(DOCUMENTATION_TAG):
-            logging.info("Removing tag %s", DOCUMENTATION_TAG)
-            repo._git_repo.git.tag("-d", DOCUMENTATION_TAG)  # pylint: disable=W0212
-            repo._git_repo.git.push(  # pylint: disable=W0212
-                "--delete", "origin", DOCUMENTATION_TAG
-            )
-
-    repository.create_branch(E2E_BRANCH, E2E_BASE).switch(E2E_BRANCH)
-    repository.update_branch("First commit of documentation")
     print(repository.current_commit)
-
-    assert discourse
 
     return True
 
@@ -334,19 +307,24 @@ def check_create(
     ):
         return False
 
-    logging.info("%s check succeeded", test_name)
+    with (repository.with_branch(E2E_BASE) as repo):
+        if (
+                not repo.tag_exists(DOCUMENTATION_TAG) or
+                repo.tag_exists(DOCUMENTATION_TAG) != repo.current_commit
+        ):
+            logging.error("Failing tag existence check: %s != %s",
+                          repo.tag_exists(DOCUMENTATION_TAG), repo.current_commit)
+            return False
 
-    # If create was successful, it means that the feature branch should be aligned with base branch
-    # We simulate a branch merge by creating the base branch from the feature branch
-    with repository.create_branch(E2E_BASE, E2E_BRANCH).with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("-u", "origin")  # pylint: disable=W0212
+    logging.info("%s check succeeded", test_name)
 
     return True
 
 
 def check_update(
-    urls_with_actions: dict[str, str],
+    repository: RepositoryClient,
     discourse: Discourse,
+    urls_with_actions: dict[str, str],
     expected_url_results: list[str],
     repo: str,
     github_token: str,
@@ -357,8 +335,9 @@ def check_update(
     that retrieving the URLs succeeds.
 
     Args:
-        urls_with_actions: The URLs that had any actions against them.
+        repository: Github Repository client
         discourse: Client to the documentation server.
+        urls_with_actions: The URLs that had any actions against them.
         expected_url_results: The expected url results.
         repo: The name of the repository.
         github_token: Token for communication with GitHub.
@@ -386,12 +365,20 @@ def check_update(
     ):
         return False
 
-    github_client = Github(login_or_token=github_token)
-    github_repo = github_client.get_repo(repo)
-    if not _check_git_tag_exists(test_name=test_name, github_repo=github_repo):
+    if not _check_git_tag_exists(test_name=test_name, github_repo=repository._github_repo):
+        return False
+
+    if repository.get_pull_request(DEFAULT_BRANCH_NAME) is None:
         return False
 
     logging.info("%s check succeeded", test_name)
+
+    # If update was successful and a PR was created, we simulate the merge remotely
+    with repository.create_branch(E2E_BASE, DEFAULT_BRANCH_NAME).with_branch(E2E_BASE) as repo:
+        repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
+
+    repository.switch(E2E_BASE)
+
     return True
 
 
