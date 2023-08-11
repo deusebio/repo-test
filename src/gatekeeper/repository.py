@@ -22,9 +22,9 @@ from github.InputGitTreeElement import InputGitTreeElement
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from src.docs_directory import has_docs_directory
-from src.metadata import get as get_metadata
-from src.types_ import Metadata
+from .docs_directory import has_docs_directory
+from .metadata import get as get_metadata
+from .types_ import Metadata
 
 from . import commit as commit_module
 from .constants import DOCUMENTATION_FOLDER_NAME
@@ -578,11 +578,11 @@ class Client:  # pylint: disable=R0904
         Returns:
             hash of the commit the tag refers to.
         """
-        self._git_repo.git.fetch("--all", "--tags")
+        self._git_repo.git.fetch("--all", "--tags", "--force")
         tags = [tag.commit for tag in self._git_repo.tags if tag_name == tag.name]
         if not tags:
             return None
-        return tags[0]
+        return tags[0].hexsha
 
     def tag_commit(self, tag_name: str, commit_sha: str) -> None:
         """Tag a commit, if the tag already exists, it is deleted first.
