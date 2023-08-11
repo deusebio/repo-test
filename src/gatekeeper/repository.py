@@ -22,9 +22,9 @@ from github.InputGitTreeElement import InputGitTreeElement
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from src.docs_directory import has_docs_directory
-from src.metadata import get as get_metadata
-from src.types_ import Metadata
+from .docs_directory import has_docs_directory
+from .metadata import get as get_metadata
+from .types_ import Metadata
 
 from . import commit as commit_module
 from .constants import DOCUMENTATION_FOLDER_NAME
