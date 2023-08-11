@@ -114,7 +114,11 @@ def main() -> None:
             )
         case Action.CLEANUP.value:
             exit_.with_result(
-                cleanup(urls_with_actions=urls_with_actions, discourse=discourse, **action_kwargs)
+                cleanup(
+                    repository=repository,
+                    discourse=discourse,
+                    urls_with_actions=urls_with_actions
+                )
             )
         case _:
             raise NotImplementedError(f"{args.action} has not been implemented")
@@ -146,7 +150,6 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     if pull_request:
         pull_request.edit(state="closed")
-        repository._git_repo.git.branch("-D", DEFAULT_BRANCH_NAME)
         repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
 
     return True
@@ -385,10 +388,8 @@ def check_update(
     # If update was successful and a PR was created, we simulate the merge remotely
     repository.switch(E2E_SETUP)
 
-    with repository.create_branch(E2E_BASE, f"origin/{DEFAULT_BRANCH_NAME}").with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
-
-    repository.switch(E2E_BASE)
+    repository.create_branch(E2E_BASE, f"origin/{DEFAULT_BRANCH_NAME}").switch(E2E_BASE)
+    repository._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
 
     return True
 
@@ -487,15 +488,16 @@ def check_delete(
 
 
 def cleanup(
-    urls_with_actions: dict[str, str], discourse: Discourse, github_token: str, repo: str
+    repository: RepositoryClient,
+    discourse: Discourse,
+    urls_with_actions: dict[str, str],
 ) -> bool:
     """Delete all URLs.
 
     Args:
-        urls_with_actions: The URLs that had any actions against them.
+        repository: Github Repository client
         discourse: Client to the documentation server.
-        github_token: Token for communication with GitHub.
-        repo: The name of the repository.
+        urls_with_actions: The URLs that had any actions against them.
 
     Returns:
         Whether the cleanup succeeded.
@@ -512,14 +514,24 @@ def cleanup(
 
     # Delete the update tag
     try:
-        github_client = Github(login_or_token=github_token)
-        github_repo = github_client.get_repo(repo)
         tag_name = DOCUMENTATION_TAG
-        update_tag = github_repo.get_git_ref(f"tags/{tag_name}")
+        update_tag = repository._github_repo.get_git_ref(f"tags/{tag_name}")
         update_tag.delete()
     except GithubException as exc:
         logging.exception("cleanup failed for GitHub update tag, %s", exc)
         result = False
+
+    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
+
+    if pull_request:
+        pull_request.edit(state="closed")
+
+    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
+
+    for branch in [DEFAULT_BRANCH_NAME, E2E_BASE]:
+        if branch in repository.branches:
+            repository._git_repo.git.branch("-D", DEFAULT_BRANCH_NAME)
+            repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
 
     return result
 
