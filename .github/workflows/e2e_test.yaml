@@ -74,7 +74,9 @@ jobs:
         run: echo '${{ steps.e2e-test-draft.outputs.topics }}'
       - name: Check draft
         run: |
+          git log | head -n 1
           PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-draft --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": []}' '${{ steps.e2e-test-draft.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+          git log | head -n 1
       - name: Create self test
         id: e2e-test-create
         uses: canonical/upload-charm-docs@wip-e2e-tests
@@ -90,7 +92,9 @@ jobs:
           echo '${{ steps.e2e-test-create.outputs.topics }}'
       - name: Check create
         run: |
+          git log | head -n 1
           PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-create --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "success", "success"]}' '${{ steps.e2e-test-create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+          git log | head -n 1
       - name: Add docs key to metadata
         run: |
           echo "docs: ${{ steps.e2e-test-create.outputs.index_url }}" >> metadata.yaml
@@ -98,6 +102,7 @@ jobs:
           git status
           git add -u 
           git commit -m "Update metadata"
+          git push 
           git log | head -n 1
       - name: Update self test
         id: e2e-test-update
