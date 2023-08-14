@@ -57,9 +57,14 @@ jobs:
             "commit sha: ${{ github.sha }}, " \
             "some uuid: $(uuidgen)" \
             > docs/alternate_doc.md
+
       - name: Prepare stage
+        id: prepare-stage
         run: |
           PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action prepare --github-token  ${{ secrets.GITHUB_TOKEN }} '{}' '${{ steps.configuration.outputs.discourse }}'
+          
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
       - name: Draft self test
         id: e2e-test-draft
         uses: canonical/upload-charm-docs@wip-e2e-tests
@@ -70,49 +75,50 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           dry_run: true
           base_branch: "tests/base"
-      - name: Show pages
-        run: echo '${{ steps.e2e-test-draft.outputs.topics }}'
-      - name: Check draft
-        run: |
-          git log | head -n 1
-          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-draft --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": []}' '${{ steps.e2e-test-draft.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
-          git log | head -n 1
-      - name: Create self test
-        id: e2e-test-create
-        uses: canonical/upload-charm-docs@wip-e2e-tests
-        with:
-          discourse_host: discourse.charmhub.io
-          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
-          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          base_branch: "tests/base"
-      - name: Show pages
-        run: |
-          echo '${{ steps.e2e-test-create.outputs.index_url }}'
-          echo '${{ steps.e2e-test-create.outputs.topics }}'
-      - name: Check create
-        run: |
-          git log | head -n 1
-          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-create --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "success", "success"]}' '${{ steps.e2e-test-create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
-          git log | head -n 1
-      - name: Add docs key to metadata
-        run: |
-          echo "docs: ${{ steps.e2e-test-create.outputs.index_url }}" >> metadata.yaml
-          cat metadata.yaml
-          git status
-          git add -u 
-          git commit -m "Update metadata"
-          git push 
-          git log | head -n 1
-      - name: Update self test
-        id: e2e-test-update
-        uses: canonical/upload-charm-docs@wip-e2e-tests
-        with:
-          discourse_host: discourse.charmhub.io
-          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
-          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          base_branch: "tests/base"
+          commit_sha: ${{  steps.prepare-stage.outputs.commit_sha }}
+      # - name: Show pages
+      #   run: echo '${{ steps.e2e-test-draft.outputs.topics }}'
+      # - name: Check draft
+      #   run: |
+      #     git log | head -n 1
+      #     PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-draft --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": []}' '${{ steps.e2e-test-draft.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+      #     git log | head -n 1
+      # - name: Create self test
+      #   id: e2e-test-create
+      #   uses: canonical/upload-charm-docs@wip-e2e-tests
+      #   with:
+      #     discourse_host: discourse.charmhub.io
+      #     discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+      #     discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     base_branch: "tests/base"
+      # - name: Show pages
+      #   run: |
+      #     echo '${{ steps.e2e-test-create.outputs.index_url }}'
+      #     echo '${{ steps.e2e-test-create.outputs.topics }}'
+      # - name: Check create
+      #   run: |
+      #     git log | head -n 1
+      #     PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-create --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "success", "success"]}' '${{ steps.e2e-test-create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+      #     git log | head -n 1
+      # - name: Add docs key to metadata
+      #   run: |
+      #     echo "docs: ${{ steps.e2e-test-create.outputs.index_url }}" >> metadata.yaml
+      #     cat metadata.yaml
+      #     git status
+      #     git add -u
+      #     git commit -m "Update metadata"
+      #     git push
+      #     git log | head -n 1
+      # - name: Update self test
+      #   id: e2e-test-update
+      #   uses: canonical/upload-charm-docs@wip-e2e-tests
+      #   with:
+      #     discourse_host: discourse.charmhub.io
+      #     discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+      #     discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     base_branch: "tests/base"
       # - name: Show pages
       #   run: echo '${{ steps.e2e-test-update.outputs.reconcile }}'
 
