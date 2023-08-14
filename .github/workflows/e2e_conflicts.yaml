@@ -73,8 +73,8 @@ jobs:
         run: |
           gh pr merge ${{ steps.import.outputs.pr_link }} --squash
 
-          git pull 
-          
+          git pull          
+          git branch -vv
           git status
           
           echo "Tags"
