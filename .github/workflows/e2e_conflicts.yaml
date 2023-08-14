@@ -82,7 +82,7 @@ jobs:
           echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Release Pipeline Documentation
-        id: import
+        id: release-import
         uses: canonical/upload-charm-docs@wip-e2e-tests
         with:
           discourse_host: discourse.charmhub.io
