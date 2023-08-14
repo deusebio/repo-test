@@ -7,7 +7,7 @@ env:
   gatekeeper_version: canonical/upload-charm-docs@wip-e2e-tests
 
 jobs:
-  e2e-tests-reconcile:
+  conflict-workflow:
     permissions: write-all
     runs-on: ubuntu-22.04
     steps:
@@ -130,7 +130,8 @@ jobs:
           COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
           echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Run checks
+      - name: Run Gatekeeper
+        id: feature-check
         uses: canonical/upload-charm-docs@wip-e2e-tests
         with:
           discourse_host: discourse.charmhub.io
@@ -144,6 +145,9 @@ jobs:
       - name: Merge Feature Branch
         id: merge-feature
         run: |
+          if [ ${{ steps.conflict.outcome }}  != "success" ]; then exit 1; fi
+          if [ ${{ steps.feature-check.outputs.pr_action }}  != "opened" ]; then exit 1; fi
+          
           PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action merge-feature --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
           COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
           echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
@@ -161,4 +165,6 @@ jobs:
 
       - name: Cleanup
         run: |
+          if [ ${{ steps.release-feature.outputs.pr_action }}  != "closed" ]; then exit 1; fi
+
           PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
