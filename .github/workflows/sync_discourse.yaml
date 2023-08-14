@@ -2,6 +2,12 @@ name: Detect changes on Discourse to raise PR
 
 on:
   workflow_dispatch:
+    inputs:
+      base_branch:
+        description: Base branch to be used when running the action
+        required: true
+        default: "main"
+
   # schedule:
   #   - cron: '00 16 * * *'
 
@@ -13,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Publish documentation
-        uses: deusebio/discourse-gatekeeper@main
+        uses: canonical/upload-charm-docs@wip-e2e-tests
 
         id: publishDocumentation
         with:
@@ -22,9 +28,10 @@ jobs:
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           dry_run: "true"
+          base_branch: ${{ inputs.base_branch }}
 
       - name: Show migrate output
-        run: echo '${{ steps.publishDocumentation.outputs.migrate }}'
+        run: echo '${{ steps.publishDocumentation.outputs.pr_link }}'
       - name: Show reconcile output
-        run: echo '${{ steps.publishDocumentation.outputs.reconcile }}'
+        run: echo '${{ steps.publishDocumentation.outputs.topics }}'
 
