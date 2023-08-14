@@ -141,24 +141,24 @@ jobs:
           base_branch: "tests/base"
           commit_sha: ${{  steps.resolve-conflict.outputs.commit_sha }}
 
-      # - name: Merge Feature Branch
-      #   id: merge-feature
-      #   run: |
-      #     PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action merge-feature --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
-      #     COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
-      #     echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
-      #
-      # - name: Release Feature
-      #   id: release-feature
-      #   uses: canonical/upload-charm-docs@wip-e2e-tests
-      #   with:
-      #     discourse_host: discourse.charmhub.io
-      #     discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
-      #     discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     base_branch: "tests/base"
-      #     commit_sha: ${{  steps.merge-feature.outputs.commit_sha }}
-      #
-      # - name: Cleanup
-      #   run: |
-      #     PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+      - name: Merge Feature Branch
+        id: merge-feature
+        run: |
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action merge-feature --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Release Feature
+        id: release-feature
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.merge-feature.outputs.commit_sha }}
+
+      - name: Cleanup
+        run: |
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
