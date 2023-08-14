@@ -21,7 +21,8 @@ from src.gatekeeper.exceptions import DiscourseError
 from src.gatekeeper.repository import Client as RepositoryClient, DEFAULT_BRANCH_NAME
 from src.gatekeeper.repository import create_repository_client
 
-E2E_SETUP = "origin/tests/e2e"
+# E2E_SETUP = "origin/tests/e2e"
+E2E_SETUP = "origin/wip-e2e-tests"
 E2E_BASE = "tests/base"
 E2E_BRANCH = "tests/feature"
 
@@ -138,6 +139,13 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
     repository.update_branch("First commit of documentation", force=True, directory=None)
 
     print(repository.current_commit)
+
+    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
+
+    if pull_request:
+        pull_request.edit(state="closed")
+        repository._git_repo.git.branch("-D", DEFAULT_BRANCH_NAME)
+        repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
 
     return True
 
@@ -308,16 +316,7 @@ def check_create(
         return False
 
     with (repository.with_branch(E2E_BASE) as repo):
-        tag = repo.tag_exists(DOCUMENTATION_TAG)
-
-        print(tag)
-        print(type(tag))
-        print(repo.current_commit)
-        print(type(repo.current_commit))
-
-        print(tag == repo.current_commit)
-
-        if not (tag == repo.current_commit):
+        if not (repo.tag_exists(DOCUMENTATION_TAG) == repo.current_commit):
             logging.error("Failing tag existence check: %s != %s",
                           repo.tag_exists(DOCUMENTATION_TAG), repo.current_commit)
             return False
@@ -379,8 +378,12 @@ def check_update(
 
     logging.info("%s check succeeded", test_name)
 
+    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
+
     # If update was successful and a PR was created, we simulate the merge remotely
-    with repository.create_branch(E2E_BASE, DEFAULT_BRANCH_NAME).with_branch(E2E_BASE) as repo:
+    repository.switch(E2E_SETUP)
+
+    with repository.create_branch(E2E_BASE, f"origin/{DEFAULT_BRANCH_NAME}").with_branch(E2E_BASE) as repo:
         repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
 
     repository.switch(E2E_BASE)

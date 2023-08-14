@@ -1,0 +1,71 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+
+env:
+  gatekeeper_version: canonical/upload-charm-docs@wip-e2e-tests
+
+jobs:
+  e2e-tests-reconcile:
+    permissions: write-all
+    runs-on: ubuntu-22.04
+    steps:
+      # Each job has to have this configuration because secrets can be passed through the output of
+      # another job
+      - name: Generate discourse configuration
+        id: configuration
+        run: |
+          echo "discourse= \
+            { \
+              \"hostname\":\"discourse.charmhub.io\", \
+              \"category_id\":\"41\", \
+              \"api_username\":\"${{ secrets.DISCOURSE_API_USERNAME }}\", \
+              \"api_key\":\"${{ secrets.DISCOURSE_API_KEY }}\" \
+            }" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        run: |
+          sudo apt update && sudo apt install python3-pip git
+          pip3 install -r requirements.txt
+
+      - name: Prepare stage
+        id: prepare-stage
+        run: |
+          PYTHONPATH=$(pwd) python3 tests/e2e/migrate.py --action prepare --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+          
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Import Documentation
+        id: import
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.prepare-stage.outputs.commit_sha }}
+
+      - name: Check creation
+        run: |
+          echo '${{ steps.create.outputs.pr_link }}'
+          echo '${{ steps.create.outputs.pr_action }}'
+          echo $(git log | head -n 1)
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action check-create --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+
+      - name: Cleanup
+        run: |
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
