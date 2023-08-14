@@ -103,7 +103,6 @@ def prepare(repository: Client, discourse: Discourse) -> bool:
 
     if pull_request:
         pull_request.edit(state="closed")
-        repository._git_repo.git.branch("-D", DEFAULT_BRANCH_NAME)
         repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
 
     if repository.tag_exists(DOCUMENTATION_TAG):
