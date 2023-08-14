@@ -10,7 +10,10 @@ import sys
 from enum import Enum
 from pathlib import Path
 
-from src.gatekeeper.constants import DOCUMENTATION_TAG
+from src.gatekeeper import index as index_module
+from src.gatekeeper import navigation_table
+
+from src.gatekeeper.constants import DOCUMENTATION_TAG, DOCUMENTATION_FOLDER_NAME
 from src.gatekeeper.discourse import create_discourse, Discourse
 from src.gatekeeper.repository import (
     Client,
@@ -37,6 +40,7 @@ class Action(str, Enum):
 
     PREPARE = "prepare"
     CHECK_PULL_REQUEST = "check-pull-request"
+    CREATE_CONFLICT = "create-conflict"
     CLEANUP = "cleanup"
 
 
@@ -73,6 +77,8 @@ def main() -> None:
         case Action.PREPARE.value:
             prepare(repository, discourse)
             sys.exit(0)
+        case Action.CREATE_CONFLICT.value:
+            exit_.with_result(create_conflict(repository, discourse))
         case Action.CHECK_PULL_REQUEST.value:
             exit_.with_result(check_pull_request(repository, discourse))
         case Action.CLEANUP.value:
@@ -145,6 +151,40 @@ def check_pull_request(repository: Client, discourse: Discourse) -> bool:
     logging.info("%s check succeeded", test_name)
     return success
 
+def create_conflict(repository: Client, discourse: Discourse) -> bool:
+
+    repository._git_repo.git.fetch("--all")
+    repository.switch(E2E_BASE)
+
+    index = index_module.get(
+        metadata=repository.metadata,
+        base_path=repository.base_path,
+        server_client=discourse,
+    )
+
+    table_rows = navigation_table.from_page(page=index.server.content, discourse=discourse)
+
+    row = [row for row in table_rows if "t-overview" in row.path][0]
+
+    file_path = Path(".").joinpath(
+        DOCUMENTATION_FOLDER_NAME, *row.path[:-1], f"{row.path[-1]}.md"
+    )
+
+    source = file_path.read_text()
+
+    print(source)
+
+    repository.create_branch(E2E_BRANCH, E2E_BASE).switch(E2E_BRANCH)
+    file_path.write_text(source + "\n Conflict in PR")
+    repository.update_branch("Modification of documentation", force=True)
+
+    discourse.update_topic(
+        url=row.navlink.link,
+        content=source + "\n Conflict in Community contribution",
+        edit_reason="Modification proposed by community"
+    )
+
+    return True
 
 def cleanup(
         repository: Client, discourse: Discourse
