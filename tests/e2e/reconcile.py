@@ -21,7 +21,8 @@ from src.gatekeeper.exceptions import DiscourseError
 from src.gatekeeper.repository import Client as RepositoryClient, DEFAULT_BRANCH_NAME
 from src.gatekeeper.repository import create_repository_client
 
-E2E_SETUP = "origin/tests/e2e"
+# E2E_SETUP = "origin/tests/e2e"
+E2E_SETUP = "origin/wip-e2e-tests"
 E2E_BASE = "tests/base"
 E2E_BRANCH = "tests/feature"
 
@@ -308,16 +309,7 @@ def check_create(
         return False
 
     with (repository.with_branch(E2E_BASE) as repo):
-        tag = repo.tag_exists(DOCUMENTATION_TAG)
-
-        print(tag)
-        print(type(tag))
-        print(repo.current_commit)
-        print(type(repo.current_commit))
-
-        print(tag == repo.current_commit)
-
-        if not (tag == repo.current_commit):
+        if not (repo.tag_exists(DOCUMENTATION_TAG) == repo.current_commit):
             logging.error("Failing tag existence check: %s != %s",
                           repo.tag_exists(DOCUMENTATION_TAG), repo.current_commit)
             return False

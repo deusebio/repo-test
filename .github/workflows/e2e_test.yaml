@@ -157,7 +157,7 @@ jobs:
           # This should also merge the PR, and the next action run should automatically close the 
           # PR
           
-          PYTHONPATH=$(pwd) python3 e2e/reconcile.py --action check-update --action-kwargs "{\"expected_url_results\": [\"success\", \"success\", \"success\"], \"github_token\": \"$GITHUB_TOKEN\", \"repo\": \"$REPO\"}" '${{ steps.e2e-test-create.outputs.reconcile }}' '${{ steps.configuration.outputs.discourse }}'
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-update --action-kwargs "{\"expected_url_results\": [\"success\", \"success\", \"success\"], \"github_token\": \"$GITHUB_TOKEN\", \"repo\": \"$REPO\"}" '${{ steps.create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
 
           echo $(git log | head -n 1)
           COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
