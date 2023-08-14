@@ -26,3 +26,5 @@ Here’s an overview of the steps required. Each links deals with an individual 
 * [Cleanup your environment](TODO)
  
 Conflict in Community contribution
+
+[E2E Test] Resolved Conflict in PR
