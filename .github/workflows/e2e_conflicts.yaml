@@ -57,8 +57,8 @@ jobs:
 
       - name: Check creation
         run: |
-          echo '${{ steps.create.outputs.pr_link }}'
-          echo '${{ steps.create.outputs.pr_action }}'
+          echo '${{ steps.import.outputs.pr_link }}'
+          echo '${{ steps.import.outputs.pr_action }}'
           echo $(git log | head -n 1)
           PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action check-pull-request --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
           echo $(git log | head -n 1)
@@ -71,7 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr merge ${{ steps.create.outputs.pr_link }}
+          gh pr merge ${{ steps.import.outputs.pr_link }}
 
           git pull 
           
