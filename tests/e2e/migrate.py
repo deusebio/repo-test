@@ -41,6 +41,7 @@ class Action(str, Enum):
     PREPARE = "prepare"
     CHECK_PULL_REQUEST = "check-pull-request"
     CREATE_CONFLICT = "create-conflict"
+    RESOLVE_CONFLICT = "resolve-conflict"
     CLEANUP = "cleanup"
 
 
@@ -79,6 +80,8 @@ def main() -> None:
             sys.exit(0)
         case Action.CREATE_CONFLICT.value:
             exit_.with_result(create_conflict(repository, discourse))
+        case Action.RESOLVE_CONFLICT.value:
+            exit_.with_result(resolve_conflict(repository, discourse))
         case Action.CHECK_PULL_REQUEST.value:
             exit_.with_result(check_pull_request(repository, discourse))
         case Action.CLEANUP.value:
@@ -151,11 +154,7 @@ def check_pull_request(repository: Client, discourse: Discourse) -> bool:
     logging.info("%s check succeeded", test_name)
     return success
 
-def create_conflict(repository: Client, discourse: Discourse) -> bool:
-
-    repository._git_repo.git.fetch("--all")
-    repository.switch(E2E_BASE)
-
+def get_test_topic_file(repository: Client, discourse: Discourse) -> (Path, str):
     index = index_module.get(
         metadata=repository.metadata,
         base_path=repository.base_path,
@@ -170,21 +169,48 @@ def create_conflict(repository: Client, discourse: Discourse) -> bool:
         DOCUMENTATION_FOLDER_NAME, *row.path[:-1], f"{row.path[-1]}.md"
     )
 
-    source = file_path.read_text()
+    return file_path, row.navlink.link
 
-    print(source)
+def create_conflict(repository: Client, discourse: Discourse) -> bool:
+
+    repository._git_repo.git.fetch("--all")
+    repository.switch(E2E_BASE)
+
+    file_path, topic_url = get_test_topic_file(repository, discourse)
+
+    source = file_path.read_text().split("\n\n[E2E Test]")[0]
 
     repository.create_branch(E2E_BRANCH, E2E_BASE).switch(E2E_BRANCH)
-    file_path.write_text(source + "\n Conflict in PR")
+    file_path.write_text(source + "\n\n[E2E Test] Conflict in PR")
     repository.update_branch("Modification of documentation", force=True)
 
     discourse.update_topic(
-        url=row.navlink.link,
-        content=source + "\n Conflict in Community contribution",
+        url=topic_url,
+        content=source + "\n\n[E2E Test] Conflict in Community contribution",
         edit_reason="Modification proposed by community"
     )
 
     return True
+
+
+def resolve_conflict(repository: Client, discourse: Discourse) -> bool:
+
+    file_path, topic_url = get_test_topic_file(repository, discourse)
+
+    source = (file_path.read_text().split("\n\n[E2E Test]")[0] +
+              "\n\n[E2E Test] Resolved Conflict in PR")
+
+    file_path.write_text(source)
+    repository.update_branch("Conflict resolution", force=True)
+
+    discourse.update_topic(
+        url=topic_url,
+        content=source,
+        edit_reason="Confict resolution in Discourse"
+    )
+
+    return True
+
 
 def cleanup(
         repository: Client, discourse: Discourse
