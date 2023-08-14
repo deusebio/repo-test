@@ -42,6 +42,7 @@ class Action(str, Enum):
     CHECK_PULL_REQUEST = "check-pull-request"
     CREATE_CONFLICT = "create-conflict"
     RESOLVE_CONFLICT = "resolve-conflict"
+    MERGE_FEATURE = "merge-feature"
     CLEANUP = "cleanup"
 
 
@@ -84,6 +85,8 @@ def main() -> None:
             exit_.with_result(resolve_conflict(repository, discourse))
         case Action.CHECK_PULL_REQUEST.value:
             exit_.with_result(check_pull_request(repository, discourse))
+        case Action.MERGE_FEATURE.value:
+            exit_.with_result(merge_feature_branch(repository))
         case Action.CLEANUP.value:
             exit_.with_result(cleanup(repository, discourse))
         case _:
@@ -211,6 +214,18 @@ def resolve_conflict(repository: Client, discourse: Discourse) -> bool:
 
     return True
 
+def merge_feature_branch(repository: Client) -> bool:
+    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
+
+    # If update was successful and a PR was created, we simulate the merge remotely
+    repository.switch(E2E_BRANCH)
+
+    with repository.create_branch(E2E_BASE, E2E_BRANCH).with_branch(E2E_BASE) as repo:
+        repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
+
+    repository.switch(E2E_BASE)
+    return True
+
 
 def cleanup(
         repository: Client, discourse: Discourse
@@ -226,6 +241,16 @@ def cleanup(
         Whether the cleanup succeeded.
     """
     result = True
+
+    file_path, topic_url = get_test_topic_file(repository, discourse)
+
+    source = file_path.read_text().split("\n\n[E2E Test]")[0]
+
+    discourse.update_topic(
+        url=topic_url,
+        content=source,
+        edit_reason="Revert E2E Tests"
+    )
 
     return result
 
