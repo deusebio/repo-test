@@ -309,7 +309,6 @@ def check_create(
 
     with (repository.with_branch(E2E_BASE) as repo):
         if (
-                not repo.tag_exists(DOCUMENTATION_TAG) or
                 repo.tag_exists(DOCUMENTATION_TAG) != repo.current_commit
         ):
             logging.error("Failing tag existence check: %s != %s",
