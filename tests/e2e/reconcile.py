@@ -134,6 +134,8 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     repository.create_branch(E2E_BASE, E2E_SETUP).switch(E2E_BASE)
 
+    repository._git_repo.git.push("-f", "origin", E2E_BASE)
+
     repository.tag_commit(DOCUMENTATION_TAG, repository.current_commit)
 
     repository.update_branch("First commit of documentation", force=True, directory=None)

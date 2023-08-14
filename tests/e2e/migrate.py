@@ -97,6 +97,8 @@ def prepare(repository: Client, discourse: Discourse) -> bool:
 
     repository.create_branch(E2E_BASE, E2E_SETUP).switch(E2E_BASE)
 
+    repository._git_repo.git.push("-f", "origin", E2E_BASE)
+
     pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
 
     if pull_request:
