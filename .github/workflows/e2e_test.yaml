@@ -1,0 +1,237 @@
+name: E2E Pushing Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e-tests-reconcile:
+    concurrency: e2e-tests
+    permissions: write-all
+    runs-on: ubuntu-22.04
+    steps:
+      # Each job has to have this configuration because secrets can be passed through the output of
+      # another job
+      - name: Generate discourse configuration
+        id: configuration
+        run: |
+          echo "discourse= \
+            { \
+              \"hostname\":\"discourse.charmhub.io\", \
+              \"category_id\":\"41\", \
+              \"api_username\":\"${{ secrets.DISCOURSE_API_USERNAME }}\", \
+              \"api_key\":\"${{ secrets.DISCOURSE_API_KEY }}\" \
+            }" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        run: |
+          sudo apt update && sudo apt install python3-pip git
+          pip3 install -r requirements.txt
+
+      - name: Prepare for action to run
+        run: |
+          # Create metadata.yaml file
+          echo "name: $(echo ${{ github.repository }} | sed 's:.*/::')-test" > metadata.yaml
+          # Create documentation index file
+          mkdir docs
+          # need some values in the content that change on every commit as discourse looks for file
+          # similarity
+          echo -e "# Charm Upload Automation Reconcile Test Index Title some uuid: $(uuidgen)\n" \
+            "placeholder index content for testing, " \
+            "repository: ${{ github.repository }}, " \
+            "branch: ${{ github.head_ref }}, " \
+            "commit sha: ${{ github.sha }}, " \
+            "some uuid: $(uuidgen)" \
+            > docs/index.md
+          echo -e "# Charm Upload Automation Reconcile Test Documentation Title some uuid: $(uuidgen)\n" \
+            "placeholder documentation content for testing, " \
+            "repository: ${{ github.repository }}, " \
+            "branch: ${{ github.head_ref }}, " \
+            "commit sha: ${{ github.sha }}, " \
+            "some uuid: $(uuidgen)" \
+            > docs/doc.md
+          echo -e "# Charm Upload Automation Reconcile Test Documentation Alternate Title some uuid: $(uuidgen)\n" \
+            "placeholder documentation alternate content for testing, " \
+            "repository: ${{ github.repository }}, " \
+            "branch: ${{ github.head_ref }}, " \
+            "commit sha: ${{ github.sha }}, " \
+            "some uuid: $(uuidgen)" \
+            > docs/alternate_doc.md
+
+      - name: Prepare stage
+        id: prepare-stage
+        run: |
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action prepare --github-token  ${{ secrets.GITHUB_TOKEN }} '{}' '${{ steps.configuration.outputs.discourse }}'
+          
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+          
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Draft self test
+        id: dry-create
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.prepare-stage.outputs.commit_sha }}
+      - name: Check dry creation
+        run: |
+          echo '${{ steps.dry-create.outputs.topics }}'
+          echo $(git log | head -n 1)
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-draft --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": []}' '${{ steps. dry-create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+
+      - name: Create self test
+        id: create
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.prepare-stage.outputs.commit_sha }}
+      - name: Check creation
+        run: |
+          echo '${{ steps.create.outputs.index_url }}'
+          echo '${{ steps.create.outputs.topics }}'
+          echo $(git log | head -n 1)
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-create --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "success", "success"]}' '${{ steps.create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+
+      - name: Add docs key to metadata
+        id: add-docs-key
+        run: |
+          echo "docs: ${{ steps.create.outputs.index_url }}" >> metadata.yaml
+          cat metadata.yaml
+          git status
+          git add -u
+          git commit -m "Update metadata"
+          git push
+          echo $(git log | head -n 1)
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+          echo "Tags"
+          echo $(git tag -l | cat)
+
+      - name: Update self test
+        id: update
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.add-docs-key.outputs.commit_sha }}
+
+      - name: Show pages
+        run: |
+          # The previous action should have created a PR to fix the formats as well as file naming
+          echo '${{ steps.update.outputs.pr_action }}'
+          echo '${{ steps.update.outputs.pr_link }}'
+
+      - name: Check update
+        id: check-update
+        run: |
+          GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}'
+          REPO='${{ github.repository }}'
+          
+          # This should also merge the PR, and the next action run should automatically close the PR      
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-update --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs "{\"expected_url_results\": [\"success\", \"success\", \"success\"], \"github_token\": \"$GITHUB_TOKEN\", \"repo\": \"$REPO\"}" '${{ steps.create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+
+          echo $(git log | head -n 1)
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+          echo "Tags"
+          echo $(git tag -l | cat)   
+
+      - name: Close Merged PR
+        id: update-closed
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.check-update.outputs.commit_sha }}
+
+
+      - name: Delete the alternate doc with delete_topics disabled
+        id: alternate-doc-deleted
+        run: |
+          rm docs/alternate-doc.md
+          git add -u 
+          git commit -m "Delete docs/alternate_doc.md"
+          
+          echo $(git log | head -n 1)
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Delete topics disabled self test
+        id: e2e-test-delete-topics
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          delete_topics: false
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.alternate-doc-deleted.outputs.commit_sha }}
+
+      - name: Show pages
+        run: echo '${{ steps.e2e-test-delete-topics.outputs.topics }}'
+      - name: Check delete topics disabled
+        run: |
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-delete-topics --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "skip", "success"]}' '${{ steps.e2e-test-delete-topics.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+      - name: Delete the doc with delete_topics enabled
+        id: doc-deleted
+        run: |
+          rm docs/doc.md
+          
+          git add -u 
+          git commit -m "Delete docs/alternate_doc.md"
+          
+          echo $(git log | head -n 1)
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Delete topics enabled self test
+        id: e2e-test-delete
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.doc-deleted.outputs.commit_sha }}
+      - name: Show pages
+        run: echo '${{ steps.e2e-test-delete.outputs.topics }}'
+      - name: Check delete topics enabled
+        run: |
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-delete --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs '{"expected_url_results": ["success", "success"]}' '${{ steps.e2e-test-delete.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
+      - name: Clean up
+        if: always()
+        run: |
+          GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}'
+          REPO='${{ github.repository }}'
+          PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs "{\"github_token\": \"$GITHUB_TOKEN\", \"repo\": \"$REPO\"}" '${{ steps.create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
