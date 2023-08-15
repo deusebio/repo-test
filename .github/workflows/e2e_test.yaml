@@ -179,7 +179,7 @@ jobs:
       - name: Delete the alternate doc with delete_topics disabled
         id: alternate-doc-deleted
         run: |
-          rm docs/alternate_doc.md
+          rm docs/alternate-doc.md
           git add -u 
           git commit -m "Delete docs/alternate_doc.md"
           
