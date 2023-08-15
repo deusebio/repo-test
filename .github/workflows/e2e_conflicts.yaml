@@ -1,0 +1,165 @@
+name: E2E Pulling Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  conflict-workflow:
+    concurrency: e2e-tests
+    permissions: write-all
+    runs-on: ubuntu-22.04
+    steps:
+      # Each job has to have this configuration because secrets can be passed through the output of
+      # another job
+      - name: Generate discourse configuration
+        id: configuration
+        run: |
+          echo "discourse= \
+            { \
+              \"hostname\":\"discourse.charmhub.io\", \
+              \"category_id\":\"41\", \
+              \"api_username\":\"${{ secrets.DISCOURSE_API_USERNAME }}\", \
+              \"api_key\":\"${{ secrets.DISCOURSE_API_KEY }}\" \
+            }" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        run: |
+          sudo apt update && sudo apt install python3-pip git
+          pip3 install -r requirements.txt
+
+      - name: Prepare stage
+        id: prepare-stage
+        run: |
+          PYTHONPATH=$(pwd) python3 tests/e2e/migrate.py --action prepare --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+          
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Import Documentation
+        id: import
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.prepare-stage.outputs.commit_sha }}
+
+      - name: Check creation
+        run: |
+          echo '${{ steps.import.outputs.pr_link }}'
+          echo '${{ steps.import.outputs.pr_action }}'
+          echo $(git log | head -n 1)
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action check-pull-request --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          echo $(git log | head -n 1)
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+
+      - name: Merge PR
+        id: merge-import
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge ${{ steps.import.outputs.pr_link }} --squash
+
+          git pull          
+          git branch -vv
+          git status
+          
+          echo "Tags"
+          echo $(git tag -l | cat)
+          
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Release Pipeline Documentation
+        id: release-import
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.merge-import.outputs.commit_sha }}
+
+      - name: Create conflict
+        id: create-conflict
+        run: |
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action create-conflict --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+
+          git status
+
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Raise Conflict in PR
+        id: conflict
+        continue-on-error: true
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.create-conflict.outputs.commit_sha }}
+
+      - name: Resolve conflict
+        id: resolve-conflict
+        run: |
+          if [ ${{ steps.conflict.outcome }}  != "failure" ]; then exit 1; fi
+          
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action resolve-conflict --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Run Gatekeeper
+        id: feature-check
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.resolve-conflict.outputs.commit_sha }}
+
+      - name: Merge Feature Branch
+        id: merge-feature
+        run: |
+          if [ ${{ steps.feature-check.outcome }}  != "success" ]; then exit 1; fi
+          if [ ${{ steps.feature-check.outputs.pr_action }}  != "opened" ]; then exit 1; fi
+          
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action merge-feature --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
+          COMMIT_SHA=$(git log | head -n 1 | sed -En "s/commit\ //p")
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Release Feature
+        id: release-feature
+        uses: canonical/upload-charm-docs@wip-e2e-tests
+        with:
+          discourse_host: discourse.charmhub.io
+          discourse_api_username: ${{ secrets.DISCOURSE_API_USERNAME }}
+          discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: "tests/base"
+          commit_sha: ${{  steps.merge-feature.outputs.commit_sha }}
+
+      - name: Cleanup
+        run: |
+          if [ ${{ steps.release-feature.outputs.pr_action }}  != "closed" ]; then exit 1; fi
+
+          PYTHONPATH=$(pwd) python3  tests/e2e/migrate.py  --action cleanup --github-token  ${{ secrets.GITHUB_TOKEN }} '${{ steps.configuration.outputs.discourse }}'
