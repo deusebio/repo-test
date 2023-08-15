@@ -385,10 +385,8 @@ def check_update(
     # If update was successful and a PR was created, we simulate the merge remotely
     repository.switch(E2E_SETUP)
 
-    with repository.create_branch(E2E_BASE, f"origin/{DEFAULT_BRANCH_NAME}").with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
-
-    repository.switch(E2E_BASE)
+    repository.create_branch(E2E_BASE, DEFAULT_BRANCH_NAME).switch(E2E_BASE)
+    repository._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
 
     return True
 

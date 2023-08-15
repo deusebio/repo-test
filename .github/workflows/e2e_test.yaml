@@ -154,9 +154,7 @@ jobs:
           GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}'
           REPO='${{ github.repository }}'
           
-          # This should also merge the PR, and the next action run should automatically close the 
-          # PR
-          
+          # This should also merge the PR, and the next action run should automatically close the PR      
           PYTHONPATH=$(pwd) python3 tests/e2e/reconcile.py --action check-update --github-token  ${{ secrets.GITHUB_TOKEN }} --action-kwargs "{\"expected_url_results\": [\"success\", \"success\", \"success\"], \"github_token\": \"$GITHUB_TOKEN\", \"repo\": \"$REPO\"}" '${{ steps.create.outputs.topics }}' '${{ steps.configuration.outputs.discourse }}'
 
           echo $(git log | head -n 1)
@@ -175,7 +173,6 @@ jobs:
           discourse_api_key: ${{ secrets.DISCOURSE_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           base_branch: "tests/base"
-          dry_run: true
           commit_sha: ${{  steps.check-update.outputs.commit_sha }}
 
       # - name: Delete the alternate doc with delete_topics disabled
