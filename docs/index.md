@@ -1,0 +1,2 @@
+# Charm Upload Automation Reconcile Test Index Title some uuid: d027fc6a-9cbd-4005-ace6-fc1a6cb93b21
+ placeholder index content for testing,  repository: deusebio/repo-test,  branch: ,  commit sha: 2be2913244ca38c3b152b4fef52bcd7290f4776a,  some uuid: 7456e6fb-c800-4c5d-9f08-0609e7dc8dcf
