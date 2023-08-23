@@ -10,19 +10,17 @@ import logging
 import pathlib
 from enum import Enum
 
-from github.GithubException import GithubException, UnknownObjectException
+from github.GithubException import UnknownObjectException
 from github.Repository import Repository
 
 from src.gatekeeper.constants import DOCUMENTATION_TAG
 from src.gatekeeper.discourse import Discourse, create_discourse
 from src.gatekeeper.exceptions import DiscourseError
-from src.gatekeeper.repository import Client as RepositoryClient, DEFAULT_BRANCH_NAME
+from src.gatekeeper.repository import DEFAULT_BRANCH_NAME
+from src.gatekeeper.repository import Client as RepositoryClient
 from src.gatekeeper.repository import create_repository_client
-from tests.e2e import exit_
 
-E2E_SETUP = "origin/tests/e2e"
-E2E_BASE = "tests/base"
-E2E_BRANCH = "tests/feature"
+from .common import E2E_BASE, E2E_SETUP, close_pull_request, general_cleanup, with_result
 
 
 class Action(str, Enum):
@@ -80,11 +78,11 @@ def main() -> None:
 
     match args.action:
         case Action.PREPARE.value:
-            exit_.with_result(_prepare(repository, discourse))
+            with_result(_prepare(repository, discourse))
         case Action.CHECK_DRAFT.value:
-            exit_.with_result(check_draft(urls_with_actions=urls_with_actions, **action_kwargs))
+            with_result(check_draft(urls_with_actions=urls_with_actions, **action_kwargs))
         case Action.CHECK_CREATE.value:
-            exit_.with_result(
+            with_result(
                 check_create(
                     repository=repository,
                     discourse=discourse,
@@ -93,37 +91,37 @@ def main() -> None:
                 )
             )
         case Action.CHECK_UPDATE.value:
-            exit_.with_result(
+            with_result(
                 check_update(
-                    repository=repository, discourse=discourse,
-                    urls_with_actions=urls_with_actions, **action_kwargs
+                    repository=repository,
+                    discourse=discourse,
+                    urls_with_actions=urls_with_actions,
+                    **action_kwargs,
                 )
             )
         case Action.CHECK_DELETE_TOPICS.value:
-            exit_.with_result(
+            with_result(
                 check_delete_topics(
                     urls_with_actions=urls_with_actions, discourse=discourse, **action_kwargs
                 )
             )
         case Action.CHECK_DELETE.value:
-            exit_.with_result(
+            with_result(
                 check_delete(
                     urls_with_actions=urls_with_actions, discourse=discourse, **action_kwargs
                 )
             )
         case Action.CLEANUP.value:
-            exit_.with_result(
+            with_result(
                 cleanup(
-                    repository=repository,
-                    discourse=discourse,
-                    urls_with_actions=urls_with_actions
+                    repository=repository, discourse=discourse, urls_with_actions=urls_with_actions
                 )
             )
         case _:
             raise NotImplementedError(f"{args.action} has not been implemented")
 
 
-def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
+def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:  # pylint: disable=W0613
     """Prepare the stage for the tests.
 
     Args:
@@ -137,7 +135,7 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     repository.create_branch(E2E_BASE, E2E_SETUP).switch(E2E_BASE)
 
-    repository._git_repo.git.push("-f", "origin", E2E_BASE)
+    repository._git_repo.git.push("-f", "origin", E2E_BASE)  # pylint: disable=W0212
 
     repository.tag_commit(DOCUMENTATION_TAG, repository.current_commit)
 
@@ -145,17 +143,13 @@ def _prepare(repository: RepositoryClient, discourse: Discourse) -> bool:
 
     print(repository.current_commit)
 
-    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
-
-    if pull_request:
-        pull_request.edit(state="closed")
-        repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
+    close_pull_request(repository)
 
     return True
 
 
 def _check_url_count(
-        urls_with_actions: dict[str, str], expected_count: int, test_name: str
+    urls_with_actions: dict[str, str], expected_count: int, test_name: str
 ) -> bool:
     """Perform the check for the number of URLs.
 
@@ -182,7 +176,7 @@ def _check_url_count(
 
 
 def _check_url_retrieve(
-        urls_with_actions: dict[str, str], discourse: Discourse, test_name: str
+    urls_with_actions: dict[str, str], discourse: Discourse, test_name: str
 ) -> bool:
     """Check that retrieving the URL succeeds.
 
@@ -210,7 +204,7 @@ def _check_url_retrieve(
 
 
 def _check_url_result(
-        urls_with_actions: dict[str, str], expected_result: list[str], test_name: str
+    urls_with_actions: dict[str, str], expected_result: list[str], test_name: str
 ) -> bool:
     """Check the results for the URLs.
 
@@ -269,9 +263,9 @@ def check_draft(urls_with_actions: dict[str, str], expected_url_results: list[st
     """
     test_name = "draft"
     if not _check_url_count(
-            urls_with_actions=urls_with_actions,
-            expected_count=len(expected_url_results),
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_count=len(expected_url_results),
+        test_name=test_name,
     ):
         return False
 
@@ -280,10 +274,10 @@ def check_draft(urls_with_actions: dict[str, str], expected_url_results: list[st
 
 
 def check_create(
-        repository: RepositoryClient,
-        discourse: Discourse,
-        urls_with_actions: dict[str, str],
-        expected_url_results: list[str],
+    repository: RepositoryClient,
+    discourse: Discourse,
+    urls_with_actions: dict[str, str],
+    expected_url_results: list[str],
 ) -> bool:
     """Check that the create test succeeded.
 
@@ -301,28 +295,31 @@ def check_create(
     """
     test_name = "create"
     if not _check_url_count(
-            urls_with_actions=urls_with_actions,
-            expected_count=len(expected_url_results),
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_count=len(expected_url_results),
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_result(
-            urls_with_actions=urls_with_actions,
-            expected_result=expected_url_results,
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_result=expected_url_results,
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_retrieve(
-            urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
+        urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
     ):
         return False
 
-    with (repository.with_branch(E2E_BASE) as repo):
-        if not (repo.tag_exists(DOCUMENTATION_TAG) == repo.current_commit):
-            logging.error("Failing tag existence check: %s != %s",
-                          repo.tag_exists(DOCUMENTATION_TAG), repo.current_commit)
+    with repository.with_branch(E2E_BASE) as repo:
+        if not repo.tag_exists(DOCUMENTATION_TAG) == repo.current_commit:
+            logging.error(
+                "Failing tag existence check: %s != %s",
+                repo.tag_exists(DOCUMENTATION_TAG),
+                repo.current_commit,
+            )
             return False
 
     logging.info("%s check succeeded", test_name)
@@ -331,12 +328,10 @@ def check_create(
 
 
 def check_update(
-        repository: RepositoryClient,
-        discourse: Discourse,
-        urls_with_actions: dict[str, str],
-        expected_url_results: list[str],
-        repo: str,
-        github_token: str,
+    repository: RepositoryClient,
+    discourse: Discourse,
+    urls_with_actions: dict[str, str],
+    expected_url_results: list[str],
 ) -> bool:
     """Check that the update test succeeded.
 
@@ -348,33 +343,33 @@ def check_update(
         discourse: Client to the documentation server.
         urls_with_actions: The URLs that had any actions against them.
         expected_url_results: The expected url results.
-        repo: The name of the repository.
-        github_token: Token for communication with GitHub.
 
     Returns:
         Whether the test succeeded.
     """
     test_name = "update"
     if not _check_url_count(
-            urls_with_actions=urls_with_actions,
-            expected_count=len(expected_url_results),
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_count=len(expected_url_results),
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_result(
-            urls_with_actions=urls_with_actions,
-            expected_result=expected_url_results,
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_result=expected_url_results,
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_retrieve(
-            urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
+        urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
     ):
         return False
 
-    if not _check_git_tag_exists(test_name=test_name, github_repo=repository._github_repo):
+    if not _check_git_tag_exists(
+        test_name=test_name, github_repo=repository._github_repo  # pylint: disable=W0212
+    ):
         return False
 
     if repository.get_pull_request(DEFAULT_BRANCH_NAME) is None:
@@ -388,14 +383,15 @@ def check_update(
     repository.switch(E2E_SETUP)
 
     repository.create_branch(E2E_BASE, f"origin/{DEFAULT_BRANCH_NAME}").switch(E2E_BASE)
-    repository._git_repo.git.push("--set-upstream", "-f", "origin",
-                                  E2E_BASE)  # pylint: disable=W0212
+    repository._git_repo.git.push(  # pylint: disable=W0212
+        "--set-upstream", "-f", "origin", E2E_BASE
+    )  # pylint: disable=W0212
 
     return True
 
 
 def check_delete_topics(
-        urls_with_actions: dict[str, str], discourse: Discourse, expected_url_results: list[str]
+    urls_with_actions: dict[str, str], discourse: Discourse, expected_url_results: list[str]
 ) -> bool:
     """Check that the delete_topics test succeeded.
 
@@ -412,21 +408,21 @@ def check_delete_topics(
     """
     test_name = "delete_topics"
     if not _check_url_count(
-            urls_with_actions=urls_with_actions,
-            expected_count=len(expected_url_results),
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_count=len(expected_url_results),
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_result(
-            urls_with_actions=urls_with_actions,
-            expected_result=expected_url_results,
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_result=expected_url_results,
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_retrieve(
-            urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
+        urls_with_actions=urls_with_actions, discourse=discourse, test_name=test_name
     ):
         return False
 
@@ -435,7 +431,7 @@ def check_delete_topics(
 
 
 def check_delete(
-        urls_with_actions: dict[str, str], discourse: Discourse, expected_url_results: list[str]
+    urls_with_actions: dict[str, str], discourse: Discourse, expected_url_results: list[str]
 ) -> bool:
     """Check that the delete test succeeded.
 
@@ -452,24 +448,24 @@ def check_delete(
     """
     test_name = "delete"
     if not _check_url_count(
-            urls_with_actions=urls_with_actions,
-            expected_count=len(expected_url_results),
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_count=len(expected_url_results),
+        test_name=test_name,
     ):
         return False
 
     if not _check_url_result(
-            urls_with_actions=urls_with_actions,
-            expected_result=expected_url_results,
-            test_name=test_name,
+        urls_with_actions=urls_with_actions,
+        expected_result=expected_url_results,
+        test_name=test_name,
     ):
         return False
 
     urls = tuple(urls_with_actions.keys())
     if not _check_url_retrieve(
-            urls_with_actions={urls[1]: urls_with_actions[urls[1]]},
-            discourse=discourse,
-            test_name=test_name,
+        urls_with_actions={urls[1]: urls_with_actions[urls[1]]},
+        discourse=discourse,
+        test_name=test_name,
     ):
         return False
 
@@ -487,10 +483,10 @@ def check_delete(
     return True
 
 
-def cleanup(
-        repository: RepositoryClient,
-        discourse: Discourse,
-        urls_with_actions: dict[str, str],
+def cleanup(  # noqa: C901
+    repository: RepositoryClient,
+    discourse: Discourse,
+    urls_with_actions: dict[str, str],
 ) -> bool:
     """Delete all URLs.
 
@@ -512,32 +508,7 @@ def cleanup(
             logging.exception("cleanup failed for discourse, %s", exc)
             result = False
 
-    # Delete the update tag
-    try:
-        tag_name = DOCUMENTATION_TAG
-        update_tag = repository._github_repo.get_git_ref(f"tags/{tag_name}")
-        update_tag.delete()
-    except GithubException as exc:
-        logging.exception("cleanup failed for GitHub update tag, %s", exc)
-        result = False
-
-    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
-
-    if pull_request:
-        pull_request.edit(state="closed")
-
-    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
-
-    for branch in [DEFAULT_BRANCH_NAME, E2E_BASE]:
-        if branch in repository.branches:
-            try:
-                repository._git_repo.git.branch("-D", branch)
-            except:
-                logging.info(f"Branch {branch} not found locally")
-        try:
-            repository._git_repo.git.push("origin", "--delete", branch)
-        except:
-            logging.info(f"Branch {branch} not found in remote")
+    result = result and general_cleanup(repository)
 
     return result
 

@@ -9,24 +9,27 @@ import logging
 import sys
 from enum import Enum
 from pathlib import Path
-
-from github.GithubException import GithubException
+from typing import Tuple
 
 from src.gatekeeper import index as index_module
 from src.gatekeeper import navigation_table
-from src.gatekeeper.constants import DOCUMENTATION_TAG, DOCUMENTATION_FOLDER_NAME
-from src.gatekeeper.discourse import create_discourse, Discourse
+from src.gatekeeper.constants import DOCUMENTATION_FOLDER_NAME, DOCUMENTATION_TAG
+from src.gatekeeper.discourse import Discourse, create_discourse
 from src.gatekeeper.repository import (
-    Client,
     ACTIONS_PULL_REQUEST_TITLE,
     DEFAULT_BRANCH_NAME,
+    Client,
     create_repository_client,
 )
-from tests.e2e import exit_
 
-E2E_SETUP = "origin/tests/e2e"
-E2E_BASE = "tests/base"
-E2E_BRANCH = "tests/feature"
+from .common import (
+    E2E_BASE,
+    E2E_BRANCH,
+    E2E_SETUP,
+    close_pull_request,
+    general_cleanup,
+    with_result,
+)
 
 
 class Action(str, Enum):
@@ -34,8 +37,11 @@ class Action(str, Enum):
 
     Attrs:
         PREPARE: Prepare discourse pages before running the migration.
-        CHECK_BRANCH: Check that the migration branch was created.
         CHECK_PULL_REQUEST: Check that the migration pull request was created.
+        CREATE_CONFLICT: create a simple conflict by editing both local and discourse sources.
+        RESOLVE_CONFLICT: resolve a conflict by making sure that local and discourse versions
+            matches.
+        MERGE_FEATURE: simulate the remote merging of a feature.
         CLEANUP: Delete discourse pages and migration pull request and branch after the migration.
     """
 
@@ -65,13 +71,9 @@ def main() -> None:
     parser.add_argument(
         "--action", help="Action to run", choices=tuple(action.value for action in Action)
     )
-    parser.add_argument(
-        "--action-kwargs", help="Arguments for the action as a JSON mapping", default="{}"
-    )
     parser.add_argument("--github-token", help="Github token to setup repository")
     args = parser.parse_args()
     discourse_config = json.loads(args.discourse_config)
-    action_kwargs = json.loads(args.action_kwargs)
 
     discourse = create_discourse(**discourse_config)
     repository = create_repository_client(args.github_token, Path.cwd())
@@ -81,15 +83,15 @@ def main() -> None:
             prepare(repository, discourse)
             sys.exit(0)
         case Action.CREATE_CONFLICT.value:
-            exit_.with_result(create_conflict(repository, discourse))
+            with_result(create_conflict(repository, discourse))
         case Action.RESOLVE_CONFLICT.value:
-            exit_.with_result(resolve_conflict(repository, discourse))
+            with_result(resolve_conflict(repository, discourse))
         case Action.CHECK_PULL_REQUEST.value:
-            exit_.with_result(check_pull_request(repository))
+            with_result(check_pull_request(repository))
         case Action.MERGE_FEATURE.value:
-            exit_.with_result(merge_feature_branch(repository))
+            with_result(merge_feature_branch(repository))
         case Action.CLEANUP.value:
-            exit_.with_result(cleanup(repository, discourse))
+            with_result(cleanup(repository, discourse))
         case _:
             raise NotImplementedError(f"{args.action} has not been implemented")
 
@@ -110,13 +112,9 @@ def prepare(repository: Client, discourse: Discourse) -> bool:
 
     repository.create_branch(E2E_BASE, E2E_SETUP).switch(E2E_BASE)
 
-    repository._git_repo.git.push("-f", "-u", "origin", E2E_BASE)
+    repository._git_repo.git.push("-f", "-u", "origin", E2E_BASE)  # pylint: disable=W0212
 
-    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
-
-    if pull_request:
-        pull_request.edit(state="closed")
-        repository._git_repo.git.push("origin", "--delete", DEFAULT_BRANCH_NAME)
+    close_pull_request(repository)
 
     if repository.tag_exists(DOCUMENTATION_TAG):
         logging.info("Removing tag %s", DOCUMENTATION_TAG)
@@ -129,11 +127,10 @@ def prepare(repository: Client, discourse: Discourse) -> bool:
 
 
 def check_pull_request(repository: Client) -> bool:
-    """Check wheather the pull request was opened correctly.
+    """Check whether the pull request was opened correctly.
 
     Args:
         repository: Client repository to used
-        discourse: Discourse client class
 
     Returns:
         boolean representing whether the pull request creation was successful.
@@ -168,12 +165,15 @@ def check_pull_request(repository: Client) -> bool:
     return success
 
 
-def get_test_topic_file(repository: Client, discourse: Discourse) -> (Path, str):
+def get_test_topic_file(repository: Client, discourse: Discourse) -> Tuple[Path, str]:
     """Centralize retriveal of one specific files to be used across actions.
 
     Args:
         repository: Client repository to used
         discourse: Discourse client class
+
+    Raises:
+        ValueError: when the index retrieved from the repository is empty
 
     Returns:
         Tuple with (path of the files in the repository, link to the topic in Discourse)
@@ -184,13 +184,17 @@ def get_test_topic_file(repository: Client, discourse: Discourse) -> (Path, str)
         server_client=discourse,
     )
 
+    if not index.server:
+        raise ValueError("index server cannot be none.")
+
     table_rows = navigation_table.from_page(page=index.server.content, discourse=discourse)
 
     row = [row for row in table_rows if "t-overview" in row.path][0]
 
-    file_path = Path(".").joinpath(
-        DOCUMENTATION_FOLDER_NAME, *row.path[:-1], f"{row.path[-1]}.md"
-    )
+    file_path = Path(".").joinpath(DOCUMENTATION_FOLDER_NAME, *row.path[:-1], f"{row.path[-1]}.md")
+
+    if not row.navlink.link:
+        raise ValueError("Link in the row of the navigation table must be populated.")
 
     return file_path, row.navlink.link
 
@@ -205,21 +209,21 @@ def create_conflict(repository: Client, discourse: Discourse) -> bool:
     Returns:
         boolean representing whether the operation was successful.
     """
-    repository._git_repo.git.fetch("--all")
+    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
     repository.switch(E2E_BASE)
 
     file_path, topic_url = get_test_topic_file(repository, discourse)
 
-    source = file_path.read_text().split("\n\n[E2E Test]")[0]
+    source = file_path.read_text(encoding="utf-8").split("\n\n[E2E Test]")[0]
 
     repository.create_branch(E2E_BRANCH, E2E_BASE).switch(E2E_BRANCH)
-    file_path.write_text(source + "\n\n[E2E Test] Conflict in PR")
+    file_path.write_text(source + "\n\n[E2E Test] Conflict in PR", encoding="utf-8")
     repository.update_branch("Modification of documentation", force=True)
 
     discourse.update_topic(
         url=topic_url,
         content=source + "\n\n[E2E Test] Conflict in Community contribution",
-        edit_reason="Modification proposed by community"
+        edit_reason="Modification proposed by community",
     )
 
     return True
@@ -237,16 +241,16 @@ def resolve_conflict(repository: Client, discourse: Discourse) -> bool:
     """
     file_path, topic_url = get_test_topic_file(repository, discourse)
 
-    source = (file_path.read_text().split("\n\n[E2E Test]")[0] +
-              "\n\n[E2E Test] Resolved Conflict in PR")
+    source = (
+        file_path.read_text(encoding="utf-8").split("\n\n[E2E Test]")[0]
+        + "\n\n[E2E Test] Resolved Conflict in PR"
+    )
 
-    file_path.write_text(source)
+    file_path.write_text(source, encoding="utf-8")
     repository.update_branch("Conflict resolution", force=True)
 
     discourse.update_topic(
-        url=topic_url,
-        content=source,
-        edit_reason="Confict resolution in Discourse"
+        url=topic_url, content=source, edit_reason="Conflict resolution in Discourse"
     )
 
     return True
@@ -267,16 +271,16 @@ def merge_feature_branch(repository: Client) -> bool:
     repository.switch(E2E_BRANCH)
 
     with repository.create_branch(E2E_BASE, E2E_BRANCH).with_branch(E2E_BASE) as repo:
-        repo._git_repo.git.push("--set-upstream", "-f", "origin", E2E_BASE)  # pylint: disable=W0212
+        repo._git_repo.git.push(  # pylint: disable=W0212
+            "--set-upstream", "-f", "origin", E2E_BASE
+        )
 
     repository.switch(E2E_BASE)
 
     return True
 
 
-def cleanup(
-        repository: Client, discourse: Discourse
-) -> bool:
+def cleanup(repository: Client, discourse: Discourse) -> bool:  # noqa: C901
     """Clean up testing artifacts on GitHub and Discourse.
 
     Args:
@@ -290,41 +294,11 @@ def cleanup(
 
     file_path, topic_url = get_test_topic_file(repository, discourse)
 
-    source = file_path.read_text().split("\n\n[E2E Test]")[0]
+    source = file_path.read_text(encoding="utf-8").split("\n\n[E2E Test]")[0]
 
-    discourse.update_topic(
-        url=topic_url,
-        content=source,
-        edit_reason="Revert E2E Tests"
-    )
+    discourse.update_topic(url=topic_url, content=source, edit_reason="Revert E2E Tests")
 
-    # Delete the update tag
-    try:
-        tag_name = DOCUMENTATION_TAG
-        update_tag = repository._github_repo.get_git_ref(f"tags/{tag_name}")
-        update_tag.delete()
-    except GithubException as exc:
-        logging.exception("cleanup failed for GitHub update tag, %s", exc)
-        result = False
-
-    pull_request = repository.get_pull_request(DEFAULT_BRANCH_NAME)
-
-    if pull_request:
-        pull_request.edit(state="closed")
-
-    repository._git_repo.git.fetch("--all")  # pylint: disable=W0212
-
-    for branch in [DEFAULT_BRANCH_NAME, E2E_BASE, E2E_BRANCH]:
-        if branch in repository.branches:
-            if branch in repository.branches:
-                try:
-                    repository._git_repo.git.branch("-D", branch)
-                except:
-                    logging.info(f"Branch {branch} not found locally")
-            try:
-                repository._git_repo.git.push("origin", "--delete", branch)
-            except:
-                logging.info(f"Branch {branch} not found in remote")
+    result = result and general_cleanup(repository)
 
     return result
 
